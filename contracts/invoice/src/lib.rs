@@ -133,7 +133,8 @@ impl InvoiceContract {
 
         invoice.status = storage::InvoiceStatus::Disputed;
         storage::save_invoice(&env, &invoice);
-        events::invoice_disputed(&env, invoice_id, &invoice.client);
+
+        events::invoice_approved(&env, invoice_id, &invoice.client);
         Ok(())
     }
 
