@@ -1,4 +1,5 @@
 use soroban_sdk::{contracttype, Address, Env, String};
+use crate::constants::{TTL_THRESHOLD, TTL_EXTEND_TO};
 
 /// Represents the lifecycle state of an invoice.
 #[contracttype]
@@ -59,16 +60,36 @@ pub fn next_invoice_id(env: &Env) -> u64 {
 }
 
 /// Persists an invoice to on-chain storage, keyed by its ID.
+/// 
+/// This function also extends the TTL of the storage entry to prevent
+/// it from being evicted from persistent storage.
 pub fn save_invoice(env: &Env, invoice: &Invoice) {
+    let key = DataKey::Invoice(invoice.id);
     env.storage()
         .persistent()
-        .set(&DataKey::Invoice(invoice.id), invoice);
+        .set(&key, invoice);
+    
+    // Extend TTL to prevent storage eviction
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
 }
 
 /// Retrieves an invoice by ID. Panics if the invoice does not exist.
+/// 
+/// This function also extends the TTL of the storage entry to prevent
+/// it from being evicted from persistent storage.
 pub fn get_invoice(env: &Env, invoice_id: u64) -> Invoice {
+    let key = DataKey::Invoice(invoice_id);
+    let invoice = env.storage()
+        .persistent()
+        .get(&key)
+        .expect("Invoice not found");
+    
+    // Extend TTL to prevent storage eviction
     env.storage()
         .persistent()
-        .get(&DataKey::Invoice(invoice_id))
-        .expect("Invoice not found")
+        .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
+    
+    invoice
 }
