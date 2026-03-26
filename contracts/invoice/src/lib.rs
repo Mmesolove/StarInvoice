@@ -269,7 +269,7 @@ mod tests {
         let description = String::from_str(&env, "Branding package");
 
         let invoice_id = client.create_invoice(&freelancer, &payer, &750, &description);
-        client.cancel_invoice(&invoice_id, &stranger);
+        let _ = client.cancel_invoice(&invoice_id, &stranger);
     }
 
     #[test]
