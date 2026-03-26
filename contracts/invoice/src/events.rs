@@ -32,7 +32,7 @@ pub fn invoice_cancelled(env: &Env, invoice_id: u64, cancelled_by: &Address) {
 ///
 /// Topic: `("INVOICE", "approved")`
 /// Data:  `(invoice_id, client)`
-pub fn approve_payment(env: &Env, invoice_id: u64, client: &Address) {
+pub fn invoice_approved(env: &Env, invoice_id: u64, client: &Address) {
     env.events().publish(
         (symbol_short!("INVOICE"), symbol_short!("approved")),
         (invoice_id, client.clone()),
@@ -61,13 +61,13 @@ pub fn mark_delivered(env: &Env, invoice_id: u64, freelancer: &Address) {
     );
 }
 
-/// Emits an event when escrowed funds are released to the freelancer.
+/// Emits an event when payment is released to the freelancer.
 ///
 /// Topic: `("INVOICE", "released")`
-/// Data:  `(invoice_id, freelancer)`
-pub fn payment_released(env: &Env, invoice_id: u64, freelancer: &Address) {
+/// Data:  `(invoice_id, freelancer, amount)`
+pub fn release_payment(env: &Env, invoice_id: u64, freelancer: &Address, amount: i128) {
     env.events().publish(
         (symbol_short!("INVOICE"), symbol_short!("released")),
-        (invoice_id, freelancer.clone()),
+        (invoice_id, freelancer.clone(), amount),
     );
 }
