@@ -43,6 +43,8 @@ pub struct Invoice {
     pub token: Address,
     /// Unix timestamp after which the invoice can no longer be funded.
     pub deadline: u64,
+    /// Unix timestamp when the invoice was created.
+    pub created_at: u64,
     /// Current state of the invoice in the escrow lifecycle.
     pub status: InvoiceStatus,
 }
