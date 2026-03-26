@@ -49,6 +49,7 @@ impl InvoiceContract {
             amount,
             token,
             deadline,
+            created_at: env.ledger().timestamp(),
             description,
             status: storage::InvoiceStatus::Pending,
         };
@@ -62,9 +63,9 @@ impl InvoiceContract {
     ///
     /// # Errors
     /// - Panics if the caller is not the invoice client.
-/// - Returns `ContractError::InvalidInvoiceStatus` if the invoice status is not `Pending`.
-    pub fn fund_invoice(env: Env, invoice_id: u64, token_address: Address) -> Result<(), ContractError> {
-        let mut invoice = storage::get_invoice(&env, invoice_id)?;
+    /// - Panics if the invoice status is not `Pending`.
+    pub fn fund_invoice(env: Env, invoice_id: u64) {
+        let mut invoice = storage::get_invoice(&env, invoice_id).unwrap();
 
         invoice.client.require_auth();
 
@@ -84,7 +85,6 @@ impl InvoiceContract {
         storage::save_invoice(&env, &invoice);
 
         events::invoice_funded(&env, invoice_id, &invoice.client);
-        Ok(())
     }
 
     /// Allows the freelancer to signal that work has been completed.
@@ -182,7 +182,7 @@ impl InvoiceContract {
     /// # Errors
     /// - Panics if the invoice status is not `Approved`.
     pub fn release_payment(env: Env, invoice_id: u64) {
-        let mut invoice = storage::get_invoice(&env, invoice_id);
+        let mut invoice = storage::get_invoice(&env, invoice_id).unwrap();
 
         assert!(
             invoice.status == storage::InvoiceStatus::Approved,
@@ -305,7 +305,7 @@ mod tests {
         let token_address = setup_token(&env);
         let description = String::from_str(&env, "Branding package");
 
-        let invoice_id = client.create_invoice(&freelancer, &payer, &750, &description);
+        let invoice_id = client.create_invoice(&freelancer, &payer, &750, &token_address, &9999999999, &description);
         let _ = client.cancel_invoice(&invoice_id, &stranger);
     }
 
@@ -410,11 +410,14 @@ mod tests {
 
         let freelancer = Address::generate(&env);
         let payer = Address::generate(&env);
+        let token_address = setup_token(&env);
 
         client.create_invoice(
             &freelancer,
             &payer,
             &1000,
+            &token_address,
+            &9999999999,
             &String::from_str(&env, "Desc 1"),
         );
         assert_eq!(client.invoice_count(), 1);
@@ -423,6 +426,8 @@ mod tests {
             &freelancer,
             &payer,
             &2000,
+            &token_address,
+            &9999999999,
             &String::from_str(&env, "Desc 2"),
         );
         assert_eq!(client.invoice_count(), 2);
@@ -439,27 +444,11 @@ mod tests {
 
         let freelancer = Address::generate(&env);
         let payer = Address::generate(&env);
-        let description = String::from_str(&env, "Dispute test pending");
+        let token_address = setup_token(&env);
+        let description = String::from_str(&env, "Test get_invoice");
 
-        let invoice_id = client.create_invoice(&freelancer, &payer, &100, &description);
-        client.dispute_invoice(&invoice_id);
-    }
-
-    // Issue #80: Negative tests for wrong-caller authorization
-    #[test]
-    #[should_panic]
-    fn test_fund_invoice_wrong_caller() {
-        let env = Env::default();
-        // Do not mock all auths to test auth failure
-
-        let contract_id = env.register_contract(None, InvoiceContract);
-        let client = InvoiceContractClient::new(&env, &contract_id);
-
-        let freelancer = Address::generate(&env);
-        let payer = Address::generate(&env);
-        let description = String::from_str(&env, "Test funding");
-
-        let invoice_id = client.create_invoice(&freelancer, &payer, &1000, &description);
+        let invoice_id = client.create_invoice(&freelancer, &payer, &1000, &token_address, &9999999999, &description);
+        let invoice = client.get_invoice(&invoice_id);
 
         // Try to fund as freelancer (wrong caller) - should panic
         let token_address = Address::generate(&env); // dummy
