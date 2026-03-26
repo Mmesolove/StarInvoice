@@ -11,6 +11,8 @@ pub enum InvoiceStatus {
     Funded,
     /// Freelancer has marked work as delivered.
     Delivered,
+    /// Client disputes the invoice.
+    Disputed,
     /// Client has approved the delivery.
     Approved,
     /// Funds have been released to the freelancer.
@@ -37,6 +39,8 @@ pub struct Invoice {
     pub token: Address,
     /// Unix timestamp after which the invoice can no longer be funded.
     pub deadline: u64,
+    /// Unix timestamp when the invoice was created.
+    pub created_at: u64,
     /// Current state of the invoice in the escrow lifecycle.
     pub status: InvoiceStatus,
 }
@@ -56,14 +60,17 @@ pub fn get_invoice_count(env: &Env) -> u64 {
 }
 
 /// Returns the next available invoice ID and increments the counter.
+///
+/// Storage: persistent — the counter must survive contract upgrades and
+/// instance expiry. Losing it would cause ID collisions with existing invoices.
 pub fn next_invoice_id(env: &Env) -> u64 {
     let count: u64 = env
         .storage()
-        .instance()
+        .persistent()
         .get(&DataKey::InvoiceCount)
         .unwrap_or(0);
     env.storage()
-        .instance()
+        .persistent()
         .set(&DataKey::InvoiceCount, &(count + 1));
     count
 }
