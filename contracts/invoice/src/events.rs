@@ -61,7 +61,7 @@ pub fn mark_delivered(env: &Env, invoice_id: u64, freelancer: &Address) {
     );
 }
 
-/// Emits an event when escrowed funds are released to the freelancer.
+/// Emits an event when payment is released to the freelancer.
 ///
 /// Topic: `("INVOICE", "released")`
 /// Data:  `(invoice_id, freelancer, amount)`
