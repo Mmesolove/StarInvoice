@@ -18,6 +18,7 @@ impl InvoiceContract {
     /// - `freelancer`: Address of the service provider; must sign the transaction.
     /// - `client`: Address of the paying party.
     /// - `amount`: Payment amount in the smallest token unit (stroops).
+    /// - `token`: Address of the token contract used for payment.
     /// - `description`: Human-readable description of the work.
     ///
     /// # Returns
@@ -30,6 +31,7 @@ impl InvoiceContract {
         freelancer: Address,
         client: Address,
         amount: i128,
+        token: Address,
         description: String,
     ) -> u64 {
         freelancer.require_auth();
@@ -41,6 +43,7 @@ impl InvoiceContract {
             freelancer: freelancer.clone(),
             client: client.clone(),
             amount,
+            token,
             description,
             status: storage::InvoiceStatus::Pending,
         };
@@ -55,7 +58,6 @@ impl InvoiceContract {
     ///
     /// # Parameters
     /// - `invoice_id`: ID of the invoice to fund.
-    /// - `token_address`: Address of the token contract to transfer from.
     ///
     /// # Errors
     /// - Panics if the caller is not the invoice client.
@@ -70,7 +72,7 @@ impl InvoiceContract {
             "Invoice must be in Pending status"
         );
 
-        let token = token::Client::new(&env, &token_address);
+        let token = token::Client::new(&env, &invoice.token);
         token.transfer(&invoice.client, &env.current_contract_address(), &invoice.amount);
 
         invoice.status = storage::InvoiceStatus::Funded;
@@ -180,11 +182,21 @@ impl InvoiceContract {
     ///
     /// # Errors
     /// - Panics if the invoice status is not `Approved`.
-    ///
-    /// # TODO
-    /// Not yet implemented. See: <https://github.com/your-org/StarInvoice/issues/4>
-    pub fn release_payment(_env: Env, _invoice_id: u64) {
-        todo!("release_payment not yet implemented")
+    pub fn release_payment(env: Env, invoice_id: u64) {
+        let mut invoice = storage::get_invoice(&env, invoice_id);
+
+        assert!(
+            invoice.status == storage::InvoiceStatus::Approved,
+            "Invoice must be in Approved status"
+        );
+
+        let token = token::Client::new(&env, &invoice.token);
+        token.transfer(&env.current_contract_address(), &invoice.freelancer, &invoice.amount);
+
+        invoice.status = storage::InvoiceStatus::Completed;
+        storage::save_invoice(&env, &invoice);
+
+        events::payment_released(&env, invoice_id, &invoice.freelancer);
     }
 }
 
@@ -203,9 +215,11 @@ mod tests {
 
         let freelancer = Address::generate(&env);
         let payer = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token_address = env.register_stellar_asset_contract_v2(token_admin).address();
         let description = String::from_str(&env, "Website redesign - Phase 1");
 
-        let invoice_id = client.create_invoice(&freelancer, &payer, &1000, &description);
+        let invoice_id = client.create_invoice(&freelancer, &payer, &1000, &token_address, &description);
 
         assert_eq!(invoice_id, 0);
 
@@ -214,6 +228,7 @@ mod tests {
         assert_eq!(invoice.freelancer, freelancer);
         assert_eq!(invoice.client, payer);
         assert_eq!(invoice.amount, 1000);
+        assert_eq!(invoice.token, token_address);
     }
 
     #[test]
@@ -226,9 +241,11 @@ mod tests {
 
         let freelancer = Address::generate(&env);
         let payer = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token_address = env.register_stellar_asset_contract_v2(token_admin).address();
         let description = String::from_str(&env, "Logo design");
 
-        let invoice_id = client.create_invoice(&freelancer, &payer, &500, &description);
+        let invoice_id = client.create_invoice(&freelancer, &payer, &500, &token_address, &description);
         client.cancel_invoice(&invoice_id, &freelancer);
 
         let invoice = env.as_contract(&contract_id, || storage::get_invoice(&env, invoice_id).unwrap());
@@ -245,9 +262,11 @@ mod tests {
 
         let freelancer = Address::generate(&env);
         let payer = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token_address = env.register_stellar_asset_contract_v2(token_admin).address();
         let description = String::from_str(&env, "SEO audit");
 
-        let invoice_id = client.create_invoice(&freelancer, &payer, &200, &description);
+        let invoice_id = client.create_invoice(&freelancer, &payer, &200, &token_address, &description);
         client.cancel_invoice(&invoice_id, &payer);
 
         let invoice = env.as_contract(&contract_id, || storage::get_invoice(&env, invoice_id).unwrap());
@@ -266,6 +285,8 @@ mod tests {
         let freelancer = Address::generate(&env);
         let payer = Address::generate(&env);
         let stranger = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token_address = env.register_stellar_asset_contract_v2(token_admin).address();
         let description = String::from_str(&env, "Branding package");
 
         let invoice_id = client.create_invoice(&freelancer, &payer, &750, &description);
@@ -283,9 +304,11 @@ mod tests {
 
         let freelancer = Address::generate(&env);
         let payer = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token_address = env.register_stellar_asset_contract_v2(token_admin).address();
         let description = String::from_str(&env, "App development");
 
-        let invoice_id = client_contract.create_invoice(&freelancer, &payer, &3000, &description);
+        let invoice_id = client_contract.create_invoice(&freelancer, &payer, &3000, &token_address, &description);
 
         // Cancel once to move it out of Pending
         client_contract.cancel_invoice(&invoice_id, &freelancer);
@@ -319,8 +342,8 @@ mod tests {
         token_admin_client.mint(&payer, &amount);
 
         // Create and fund the invoice
-        let invoice_id = invoice_client.create_invoice(&freelancer, &payer, &amount, &description);
-        invoice_client.fund_invoice(&invoice_id, &token_address);
+        let invoice_id = invoice_client.create_invoice(&freelancer, &payer, &amount, &token_address, &description);
+        invoice_client.fund_invoice(&invoice_id);
 
         // Assert status is now Funded
         let invoice = env.as_contract(&contract_id, || storage::get_invoice(&env, invoice_id).unwrap());
