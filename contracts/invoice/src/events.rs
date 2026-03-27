@@ -17,14 +17,25 @@ pub fn invoice_created(
     );
 }
 
-/// Emits an event when an invoice is cancelled.
+/// Emits an event when an invoice is funded by the client.
 ///
-/// Topic: `("INVOICE", "cancelled")`
-/// Data:  `(invoice_id, cancelled_by)`
-pub fn invoice_cancelled(env: &Env, invoice_id: u64, cancelled_by: &Address) {
+/// Topic: `("INVOICE", "funded")`
+/// Data:  `(invoice_id, client, amount)`
+pub fn invoice_funded(env: &Env, invoice_id: u64, client: &Address, amount: i128) {
     env.events().publish(
-        (symbol_short!("INVOICE"), symbol_short!("cancelled")),
-        (invoice_id, cancelled_by.clone()),
+        (symbol_short!("INVOICE"), symbol_short!("funded")),
+        (invoice_id, client.clone(), amount),
+    );
+}
+
+/// Emits an event when a freelancer marks work as delivered.
+///
+/// Topic: `("INVOICE", "delivered")`
+/// Data:  `(invoice_id, freelancer)`
+pub fn mark_delivered(env: &Env, invoice_id: u64, freelancer: &Address) {
+    env.events().publish(
+        (symbol_short!("INVOICE"), symbol_short!("delivered")),
+        (invoice_id, freelancer.clone()),
     );
 }
 
@@ -39,29 +50,18 @@ pub fn invoice_approved(env: &Env, invoice_id: u64, client: &Address) {
     );
 }
 
-/// Emits an event when an invoice is funded by the client.
+/// Emits an event when an invoice is cancelled.
 ///
-/// Topic: `("INVOICE", "funded")`
-/// Data:  `(invoice_id, client)`
-pub fn invoice_funded(env: &Env, invoice_id: u64, client: &Address) {
+/// Topic: `("INVOICE", "cancelled")`
+/// Data:  `(invoice_id, cancelled_by)`
+pub fn invoice_cancelled(env: &Env, invoice_id: u64, cancelled_by: &Address) {
     env.events().publish(
-        (symbol_short!("INVOICE"), symbol_short!("funded")),
-        (invoice_id, client.clone()),
+        (symbol_short!("INVOICE"), symbol_short!("cancelled")),
+        (invoice_id, cancelled_by.clone()),
     );
 }
 
-/// Emits an event when a freelancer marks an invoice as delivered.
-///
-/// Topic: `("INVOICE", "deliverd")`
-/// Data:  `(invoice_id, freelancer)`
-pub fn mark_delivered(env: &Env, invoice_id: u64, freelancer: &Address) {
-    env.events().publish(
-        (symbol_short!("INVOICE"), symbol_short!("deliverd")),
-        (invoice_id, freelancer.clone()),
-    );
-}
-
-/// Emits an event when payment is released to the freelancer.
+/// Emits an event when escrowed funds are released to the freelancer.
 ///
 /// Topic: `("INVOICE", "released")`
 /// Data:  `(invoice_id, freelancer, amount)`
@@ -71,3 +71,41 @@ pub fn release_payment(env: &Env, invoice_id: u64, freelancer: &Address, amount:
         (invoice_id, freelancer.clone(), amount),
     );
 }
+
+// TODO: Add event emitters for each state transition:
+// - mark_delivered  -> emit "INVOICE delivered" | data: (invoice_id, freelancer)
+// See: https://github.com/your-org/StarInvoice/issues/7
+
+/// Emits an event when an invoice payment is released to the freelancer.
+///
+/// Topic: `("INVOICE", "released")`
+/// Data:  `(invoice_id, freelancer, amount)`
+pub fn invoice_released(env: &Env, invoice_id: u64, freelancer: &Address, amount: i128) {
+    env.events().publish(
+        (symbol_short!("INVOICE"), symbol_short!("released")),
+        (invoice_id, freelancer.clone(), amount),
+    );
+}
+
+/// Emits an event when an invoice is refunded to the client.
+///
+/// Topic: `("INVOICE", "refunded")`
+/// Data:  `(invoice_id, client, amount)`
+pub fn invoice_refunded(env: &Env, invoice_id: u64, client: &Address, amount: i128) {
+    env.events().publish(
+        (symbol_short!("INVOICE"), symbol_short!("refunded")),
+        (invoice_id, client.clone(), amount),
+    );
+}
+
+/// Emits an event when an invoice is disputed.
+///
+/// Topic: `("INVOICE", "disputed")`
+/// Data:  `(invoice_id, caller)`
+pub fn invoice_disputed(env: &Env, invoice_id: u64, caller: &Address) {
+    env.events().publish(
+        (symbol_short!("INVOICE"), symbol_short!("disputed")),
+        (invoice_id, caller.clone()),
+    );
+}
+
